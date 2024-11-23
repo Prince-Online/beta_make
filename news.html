@@ -5,13 +5,14 @@
     .app-icon{background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); width: 35px; border-radius: 125px;}
     .news-card{ display: flex; background: #1f1f1f; border-radius: 10px; overflow: hidden; margin-bottom: -10px; height: 20%; }
     .news-image{ width: 120px; object-fit: cover; cursor: pointer; }
-    .news-details{ padding: 10px; flex-grow: 1; }
+    .news-details{ padding: 10px; flex-grow: 1; flex-direction: column; display: flex; justify-content: center; }
     .news-title{ font-size: 18px; color: #00ff7f; width: 160px; }
     .news-username{ font-size: 14px; color: #aaa; width: 100px;}
     .news-des{ font-size: 14px; color: #ddd; width: 180px; }
     .news-section{ padding: 20px; }
     .news-title,.news-username,.news-des{ overflow-x: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loader {
+    margin-top: 80%;
   --s: 64px;
   width: var(--s);
   aspect-ratio: 2;
@@ -31,9 +32,9 @@
     75%,
     100% {background-position:100% 50%,0 calc(50% - var(--s)/16),0 calc(50% + var(--s)/16),50% calc(50% - var(--s)/16),50% calc(50% + var(--s)/16)}
 }
-.loader-papa{ display: flex; justify-content: center; align-items: center; height: 80%; }
+.loader-papa{ display: flex; justify-content: center; align-items: center; margin-bottom: 3%; }
 @media only screen and (max-width: 600px){
-    .news-card{ height: 15%; }
+    .news-card{ height: 18%; }
 }
 </style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -48,4 +49,4 @@
 <!--Loader-->
 </div>
 </div>
-<script src="news.js" ></script>
+<script src="news.js"></script>
