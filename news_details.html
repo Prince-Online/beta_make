@@ -1,0 +1,334 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>News Detail</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .award-popup {
+            display: none;
+            position: absolute;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 1rem;
+            z-index: 100;
+        }
+        .award-popup.show {
+            display: block;
+        }
+        .award-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="loader" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-white"></div>
+    </div>
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div id="main-news-section" class="p-6">
+                <!-- Main news content will be dynamically inserted here -->
+            </div>
+            
+            <div class="p-6 bg-gray-50">
+                <h3 class="text-2xl font-bold mb-4">Reactions</h3>
+                <div class="flex space-x-4 mb-6">
+                    <button id="like-btn" class="like-btn px-6 py-2 bg-green-500 text-white rounded flex items-center space-x-2">
+                        👍 <span id="like-count">0</span>
+                    </button>
+                    <button id="dislike-btn" class="dislike-btn px-6 py-2 bg-red-500 text-white rounded flex items-center space-x-2">
+                        👎 <span id="dislike-count">0</span>
+                    </button>
+                    <div class="relative">
+                        <button id="award-btn" class="award-btn px-6 py-2 bg-yellow-500 text-white rounded flex items-center space-x-2">
+                            🏆 Award
+                        </button>
+                        <div id="award-popup" class="award-popup">
+                            <div class="grid grid-cols-3 gap-4">
+                                <button class="award-emoji-btn p-2 hover:bg-gray-100 rounded" data-emoji="laugh">
+                                    😂 <span class="award-count" data-type="laugh">0</span>
+                                </button>
+                                <button class="award-emoji-btn p-2 hover:bg-gray-100 rounded" data-emoji="funny">
+                                    🤣 <span class="award-count" data-type="funny">0</span>
+                                </button>
+                                <button class="award-emoji-btn p-2 hover:bg-gray-100 rounded" data-emoji="angry">
+                                    😠 <span class="award-count" data-type="angry">0</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <h3 class="text-2xl font-bold mb-4">Suggested News</h3>
+                <div id="suggested-news" class="grid md:grid-cols-3 gap-4">
+                    <!-- Suggested news will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-8">
+            <a href="index.html" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                Back to News Feed
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyRjrA7G1ATnvqmesE8vZXUF7do4eShiu2xTXdny3D1P0YpZ7L8UtogJ8cckQpVuWZZ/exec';
+        const mainNewsSection = document.getElementById('main-news-section');
+        const suggestedNewsContainer = document.getElementById('suggested-news');
+        const likeBtn = document.getElementById('like-btn');
+        const dislikeBtn = document.getElementById('dislike-btn');
+        const likeCount = document.getElementById('like-count');
+        const dislikeCount = document.getElementById('dislike-count');
+        const awardBtn = document.getElementById('award-btn');
+        const awardPopup = document.getElementById('award-popup');
+        const loaderElement = document.getElementById('loader');
+
+        let currentNews = null;
+        let allNews = [];
+
+        function showLoader() {
+            loaderElement.classList.remove('hidden');
+        }
+
+        function hideLoader() {
+            loaderElement.classList.add('hidden');
+        }
+
+        async function fetchNews() {
+            const username = localStorage.getItem('YopshLoc_Username');
+            if (!username) {
+                alert('Please log in first');
+                return;
+            }
+
+            const storedNews = localStorage.getItem('selectedNews');
+            if (!storedNews) {
+                alert('No news selected');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            currentNews = JSON.parse(storedNews);
+
+            showLoader();
+            try {
+                const response = await fetch(SHEET_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        action: 'fetchNews', 
+                        username: username 
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                allNews = data.news;
+                
+                if (currentNews) {
+                    renderMainNews(currentNews);
+                    renderSuggestedNews(currentNews);
+                    updateReactionCounts(currentNews);
+                    updateAwardCounts(currentNews);
+                    
+                    // Disable buttons if user has already reacted or awarded
+                    if (currentNews.userReacted) {
+                        likeBtn.disabled = true;
+                        dislikeBtn.disabled = true;
+                        likeBtn.classList.add('opacity-50');
+                        dislikeBtn.classList.add('opacity-50');
+                    }
+                    if (currentNews.userAwarded) {
+                        awardBtn.disabled = true;
+                        awardBtn.classList.add('opacity-50');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to fetch news');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function renderMainNews(news) {
+            mainNewsSection.innerHTML = `
+                <img src="${news.imageUrl}" alt="News Image" class="w-full h-[500px] object-cover rounded-t-lg mb-6">
+                <h1 class="text-3xl font-bold mb-4">${news.title}</h1>
+                <div class="flex items-center mb-4">
+                    <span class="text-gray-600">By ${news.username}</span>
+                </div>
+                <p class="text-lg text-gray-800 leading-relaxed">${news.content}</p>
+            `;
+        }
+
+        function renderSuggestedNews(currentNews) {
+            const suggestedNews = allNews
+                .filter(news => news.rowIndex !== currentNews.rowIndex)
+                .sort(() => 0.5 - Math.random())
+                .slice(0, 3);
+
+            suggestedNewsContainer.innerHTML = suggestedNews.map(news => `
+                <div class="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer" 
+                     onclick="selectSuggestedNews(${suggestedNews.indexOf(news)})">
+                    <img src="${news[3]}" alt="Suggested News" class="w-full h-48 object-cover">
+                    <div class="p-4">
+                        <h3 class="text-lg font-bold mb-2 truncate">${news[1]}</h3>
+                        <p class="text-sm text-gray-600 truncate">${news[2]}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectSuggestedNews(index) {
+            const suggestedNews = allNews
+                .filter(news => news.rowIndex !== currentNews.rowIndex)
+                .sort(() => 0.5 - Math.random())
+                .slice(0, 3);
+
+            const selectedNews = {
+                username: suggestedNews[index][0],
+                title: suggestedNews[index][1],
+                content: suggestedNews[index][2],
+                imageUrl: suggestedNews[index][3],
+                likes: suggestedNews[index][4] || 0,
+                dislikes: suggestedNews[index][5] || 0,
+                awards: suggestedNews[index].awards || {},
+                rowIndex: suggestedNews[index].rowIndex,
+                userReacted: suggestedNews[index].userReacted,
+                userAwarded: suggestedNews[index].userAwarded
+            };
+
+            localStorage.setItem('selectedNews', JSON.stringify(selectedNews));
+            window.location.reload();
+        }
+
+        function updateReactionCounts(news) {
+            likeCount.textContent = news.likes || 0;
+            dislikeCount.textContent = news.dislikes || 0;
+        }
+
+        function updateAwardCounts(news) {
+            const awards = news.awards || {};
+            document.querySelectorAll('.award-count').forEach(counter => {
+                const type = counter.dataset.type;
+                counter.textContent = awards[type] || 0;
+            });
+        }
+
+        async function handleReaction(type) {
+            const username = localStorage.getItem('YopshLoc_Username');
+            if (!username) return;
+
+            if (likeBtn.disabled || dislikeBtn.disabled) return;
+
+            showLoader();
+            try {
+                const response = await fetch(SHEET_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'recordReaction',
+                        username: username,
+                        type: type,
+                        rowIndex: currentNews.rowIndex
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    likeCount.textContent = data.likes;
+                    dislikeCount.textContent = data.dislikes;
+                    
+                    currentNews.likes = data.likes;
+                    currentNews.dislikes = data.dislikes;
+                    localStorage.setItem('selectedNews', JSON.stringify(currentNews));
+                    
+                    likeBtn.disabled = true;
+                    dislikeBtn.disabled = true;
+                    
+                    if (type === 'like') {
+                        likeBtn.classList.add('bg-green-700');
+                    } else {
+                        dislikeBtn.classList.add('bg-red-700');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to record reaction');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        async function handleAward(emojiType) {
+            const username = localStorage.getItem('YopshLoc_Username');
+            if (!username) return;
+            
+            if (awardBtn.disabled) return;
+            
+            showLoader();
+            try {
+                const response = await fetch(SHEET_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'recordAward',
+                        username: username,
+                        emojiType: emojiType,
+                        rowIndex: currentNews.rowIndex
+                    })
+                });
+        
+                const data = await response.json();
+                if (data.success) {
+                    document.querySelectorAll('.award-count').forEach(counter => {
+                        const type = counter.dataset.type;
+                        counter.textContent = data.awards[type] || 0;
+                    });
+                    
+                    currentNews.awards = data.awards;
+                    localStorage.setItem('selectedNews', JSON.stringify(currentNews));
+                    
+                    awardBtn.disabled = true;
+                    awardBtn.classList.add('opacity-50');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to record award');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        awardBtn.addEventListener('click', () => {
+            awardPopup.classList.toggle('show');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!awardBtn.contains(e.target) && !awardPopup.contains(e.target)) {
+                awardPopup.classList.remove('show');
+            }
+        });
+
+        document.querySelectorAll('.award-emoji-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const emoji = btn.dataset.emoji;
+                await handleAward(emoji);
+                awardPopup.classList.remove('show');
+            });
+        });
+
+        likeBtn.addEventListener('click', () => handleReaction('like'));
+        dislikeBtn.addEventListener('click', () => handleReaction('dislike'));
+
+        document.addEventListener('DOMContentLoaded', fetchNews);
+    </script>
+</body>
+</html>
