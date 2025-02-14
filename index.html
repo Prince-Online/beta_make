@@ -4,109 +4,135 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Current Location</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/google-maps/3.5.0/index.min.js"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .container {
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-            text-align: center;
+            font-family: Arial, sans-serif;
         }
-        .location-card {
+        .coordinates {
             background-color: #f5f5f5;
+            padding: 15px;
             border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        #status {
             margin: 20px 0;
-            color: #666;
-        }
-        #map {
-            width: 100%;
-            height: 300px;
-            border-radius: 8px;
-            margin-top: 20px;
         }
         .error {
             color: #dc3545;
             padding: 10px;
             background-color: #ffe6e6;
             border-radius: 4px;
-            margin-top: 10px;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
         }
     </style>
 </head>
 <body>
-    <h1>My Current Location</h1>
-    <div id="status">Fetching your location...</div>
-    <div class="location-card">
-        <div id="location-details"></div>
+    <div class="container">
+        <h1>My Current Location</h1>
+        <button onclick="getCurrentLocation()">Get My Location</button>
+        
+        <div class="loading" id="loading">
+            Getting your location...
+        </div>
+        
+        <div class="error" id="error">
+            Unable to retrieve your location. Please enable location services and try again.
+        </div>
+        
+        <div class="coordinates" id="coordinates">
+            <p><strong>Latitude:</strong> <span id="latitude">-</span></p>
+            <p><strong>Longitude:</strong> <span id="longitude">-</span></p>
+            <p><strong>Share this location:</strong> <span id="shareLink">-</span></p>
+        </div>
+        
         <div id="map"></div>
     </div>
 
     <script>
-        function showError(error) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.className = 'error';
+        let map;
+        let marker;
+
+        function initMap(lat = 0, lng = 0) {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat, lng },
+                zoom: 15
+            });
             
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    statusDiv.innerHTML = "Location access denied. Please enable location services.";
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    statusDiv.innerHTML = "Location information unavailable.";
-                    break;
-                case error.TIMEOUT:
-                    statusDiv.innerHTML = "Location request timed out.";
-                    break;
-                default:
-                    statusDiv.innerHTML = "An unknown error occurred.";
-                    break;
-            }
+            marker = new google.maps.Marker({
+                position: { lat, lng },
+                map: map,
+                title: 'Your Location'
+            });
         }
 
-        function showPosition(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
+        function getCurrentLocation() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
             
-            document.getElementById('status').innerHTML = "Location found!";
-            document.getElementById('location-details').innerHTML = `
-                <p><strong>Latitude:</strong> ${lat.toFixed(6)}</p>
-                <p><strong>Longitude:</strong> ${lon.toFixed(6)}</p>
-                <p><strong>Accuracy:</strong> ${position.coords.accuracy.toFixed(2)} meters</p>
-            `;
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
 
-            // Create a basic map using OpenStreetMap
-            const mapElement = document.getElementById('map');
-            mapElement.innerHTML = `
-                <iframe
-                    width="100%"
-                    height="100%"
-                    frameborder="0"
-                    scrolling="no"
-                    marginheight="0"
-                    marginwidth="0"
-                    src="https://www.openstreetmap.org/export/embed.html?bbox=${lon-0.01},${lat-0.01},${lon+0.01},${lat+0.01}&layer=mapnik&marker=${lat},${lon}"
-                ></iframe>
-            `;
-        }
-
-        function getLocation() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(showPosition, showError, {
-                    enableHighAccuracy: true,
-                    timeout: 5000,
-                    maximumAge: 0
-                });
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Update coordinates display
+                        document.getElementById('latitude').textContent = lat.toFixed(6);
+                        document.getElementById('longitude').textContent = lng.toFixed(6);
+                        
+                        // Create shareable link
+                        const shareLink = `https://www.google.com/maps?q=${lat},${lng}`;
+                        const shareLinkEl = document.getElementById('shareLink');
+                        shareLinkEl.innerHTML = `<a href="${shareLink}" target="_blank">View on Google Maps</a>`;
+                        
+                        // Update map
+                        const newPosition = { lat, lng };
+                        map.setCenter(newPosition);
+                        marker.setPosition(newPosition);
+                        
+                        loadingEl.style.display = 'none';
+                    },
+                    (error) => {
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'block';
+                        console.error('Error getting location:', error);
+                    }
+                );
             } else {
-                document.getElementById('status').innerHTML = "Geolocation is not supported by this browser.";
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorEl.textContent = 'Geolocation is not supported by this browser.';
             }
         }
 
-        // Start getting location when page loads
-        getLocation();
+        // Initialize map with default center (0,0)
+        initMap();
     </script>
 </body>
 </html>
